@@ -27,13 +27,13 @@ First of all, we will need to simulate the fictitious power spectrum of the fict
 
    l_max = 1000
 
-   modules_path = '/path/to/your/modules'
+   packages_path = '/path/to/your/packages'
 
    info_fiducial = {
        'params': fiducial_params,
        'likelihood': {'one': None},
        'theory': {'camb': None},
-       'modules': modules_path}
+       'packages': packages_path}
 
    from cobaya.model import get_model
    model_fiducial = get_model(info_fiducial)
@@ -76,7 +76,7 @@ Now, let us define the likelihood. The arguments of the likelihood function will
            # Declaration of our theory requirements
            _theory={'cl': {'tt': l_max}},
            # Declaration of available derived parameters
-           _derived={'Map_Cl_at_500': None}):
+           _derived=('Map_Cl_at_500',)):
        # Noise spectrum, beam-corrected
        healpix_Nside=512
        pixel_area_rad = np.pi/(3*healpix_Nside**2)
@@ -90,7 +90,8 @@ Now, let us define the likelihood. The arguments of the likelihood function will
        Cl_theo = _theory.get_Cl(ell_factor=False)['tt'][:l_max+1]  # muK-2
        Cl_map_theo = Cl_theo + Nl
        # Set our derived parameter, assuming '_derived' is a dictionary
-       _derived['Map_Cl_at_500'] = Cl_map[500]
+       if isinstance(_derived, dict):
+           _derived['Map_Cl_at_500'] = Cl_map[500]
        # Auxiliary plot
        #ell_factor = ells*(ells+1)/(2*np.pi)
        #plt.figure()
@@ -130,7 +131,7 @@ To illustrate the use of likelihood parameters, we will try to marginalise over 
        'likelihood': {'my_cl_like': my_like},
        'theory': {'camb': {'stop_at_error': True}},
        'sampler': {'mcmc': None},  # or polychord...
-       'modules': modules_path,
+       'packages_path': packages_path,
        'output': 'chains/my_imaginary_cmb'}
 
 
