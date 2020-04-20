@@ -17,8 +17,8 @@ class CCL(Theory):
         self._var_pairs = set()
 
     def get_requirements(self):
-        # (Should this be moved to "needs"?) Requirements for creating a CCL cosmo object:
         return {'omch2', 'ombh2', 'H0', 'ns', 'As'}
+        #return
 
     def needs(self, **requirements):
         # requirements is dictionary of things requested by likelihoods
@@ -53,14 +53,20 @@ class CCL(Theory):
         #            needs['baryon_fudge1'] = None  # nuisance parameter needed
         if self._zmax:
             pass
-        # TODO: Are these dictionaries with the arrays required for computing chi(z) and H(z)?
-        #   needs['comoving_radial_distance'] = {'z': self._z_sampling}
-        #   needs['Hubble'] = {'z': self._z_sampling}
+            needs['Hubble'] = {'z': self._z_sampling}
+            needs['comoving_radial_distance'] = {'z': self._z_sampling}
+            """
+            needs['growth'] = {'z': self._z_sampling} # FIXME: How do I retrieve these?
+            needs['fgrowth'] = {'z': self._z_sampling}
+            """
 
         # if any cosmological parameters needed can add them to requirements
-        # TODO: Figure out which parameters are necessary, (e.g. A_s, H0 to go from E(z) to H(z))
-        # needs['H0'] = None
-        # needs['A_s'] = None
+        # Which cosmo parameters are necessary, (e.g. A_s, H0 to go from E(z) to H(z))
+        needs['H0'] = None
+        needs['As'] = None
+        needs['omch2'] = None
+        needs['ombh2'] = None
+        needs['ns'] = None
 
         return needs
 
@@ -82,25 +88,50 @@ class CCL(Theory):
             h = self.provider.get_param('H0') / 100.
             Omega_c = self.provider.get_param('omch2') / h ** 2.
             Omega_b = self.provider.get_param('ombh2') / h ** 2.
-
-            import pyccl as ccl
-            matter_pk = 'linear'
-            cosmo = ccl.Cosmology(Omega_c=Omega_c, Omega_b=Omega_b, h=h,
-                                   n_s=self.provider.get_param('ns'),
-                                   A_s=self.provider.get_param('As'), matter_power_spectrum=matter_pk)
             #baryon_fudge1 = params_values_dict['baryon_fudge1']
             state['angular_cl'] = {}
             for pair in self._var_pairs:
+                # Get the matter power spectrum:
                 k, z, Pk = self.provider.get_Pk_grid(var_pair=pair,
                                                           nonlinear=False)
-                # import pdb; pdb.set_trace()
-                # .. use them and store calculated result
-                # TODO: Here create a cosmo object with paramteres read from input.
-                # cosmo = CCL(distance=distance, k=k, z=z, PKWell=PK_Weyl ...)
                 # Array z is sorted in ascending order. CCL requires an ascending scale factor as input
                 # np.flip(arr, axis=0) flips the rows of arr, thus making PK_Weyl with z in descending order.
                 Pk = np.flip(Pk, axis=0)
                 a = np.sort(1. / (1 + z))
+                # Read in the distance and Hubble parameter arrays:
+                distance = self.provider.get_comoving_radial_distance(self._z_sampling)
+                hubble_z = self.provider.get_Hubble(self._z_sampling)
+                E_of_z = hubble_z/self.provider.get_param('H0')
+                #import pdb; pdb.set_trace()
+                # FIXME:
+                # growth = self.provider.get_???
+                # fgrowth = self.provider.get_???
+                # FIXME: Check that these are okay with redshift->scale factor.
+                # .. use them and store calculated result
+                # TODO: Here create a cosmo object with paramteres read from input.
+                # cosmo = CCL(distance=distance, k=k, z=z, PKWell=PK_Weyl ...)
+                transfer_function = 'pklin_from_input'  # this to read linear power spectrum.
+                #matter_pk = 'pkln_from_input'  # This to read non-linear power spectrum.
+                matter_pk = 'linear'
+                # These are the bare essentials to call the Cosmology object.
+                import pyccl as ccl
+                cosmo = ccl.Cosmology(Omega_c=Omega_c, Omega_b=Omega_b, h=h,
+                                      n_s=self.provider.get_param('ns'),
+                                      A_s=self.provider.get_param('As'),
+                                      #transfer_function=transfer_function,
+                                      matter_power_spectrum=matter_pk)
+                """
+                cosmo._set_background_from_arrays(a_array=a,
+                                                  chi_array=distance,
+                                                  hoh0_array=E_of_z,
+                                                  growth_array=growth,
+                                                  fgrowth_array=fgrowth)
+                """
+                # FIXME: if linear power, else non-linear
+                #cosmo._set_linear_power_from_arrays(a, k, Pk)
+                #cosmo._set_nonlin_power_from_arrays(a, k, Pk)
+
+                # TODO: Comment this out once the part above is working
                 P_of_k_a = ccl.pk2d.Pk2D(a_arr=a, lk_arr=np.log(k), pk_arr=Pk,
                                           is_logp=False)
 
@@ -111,6 +142,8 @@ class CCL(Theory):
                 tracer2 = ccl.WeakLensingTracer(cosmo, dndz=(z_n, n))
                 ell =  np.logspace(np.log10(3),3) # FIXME: At which ell do we compute C_l? Now it is log-spaced from 3 to 1000
                 cls = ccl.cls.angular_cl(cosmo, tracer1, tracer2, ell, p_of_k_a=P_of_k_a)
+                # TODO: Once CCL is reading the PS, comment top and un-comment bottom line.
+                #cls = ccl.cls.angular_cl(cosmo, tracer1, tracer2, ell)
                 state['angular_cl'][pair] = {'cls': cls, 'ell': ell}
 
 
@@ -176,7 +209,7 @@ if __name__ == '__main__':
         # print(results)
         return
 
-
+    """
     info = {'likelihood': {'C_l': cl_likelihood},
             'theory': OrderedDict({
                 'camb': {'stop_at_error': True,
@@ -184,6 +217,14 @@ if __name__ == '__main__':
                 'CCL': {'external': CCL}}),
             'params': dict(H0={'prior': {'min': 0, 'max': 100}}, **camb_params),
             'debug': debug, 'stop_at_error': True}
+    """
+    info = {'likelihood': {'C_l': cl_likelihood},
+            'theory': OrderedDict({
+                'camb': {'stop_at_error': True},
+                'CCL': {'external': CCL}}),
+            'params': dict(H0={'prior': {'min': 0, 'max': 100}}, **camb_params),
+            'debug': debug, 'stop_at_error': True}
+
 
     model = get_model(info)
     model.loglikes({'H0': H0})
