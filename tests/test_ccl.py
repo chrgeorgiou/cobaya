@@ -84,8 +84,6 @@ class CCL(Theory):
 
                 # Create a CCL cosmology object
                 import pyccl as ccl
-                transfer_function = 'pklin_from_input'  # this to read linear power spectrum.
-                matter_pk = 'pknl_from_input'  # This to read non-linear power spectrum.
                 h = self.provider.get_param('H0') / 100.
                 Omega_c = self.provider.get_param('omch2') / h ** 2.
                 Omega_b = self.provider.get_param('ombh2') / h ** 2.
@@ -100,9 +98,7 @@ class CCL(Theory):
                 # In order to use CCL with input arrays, the cosmology object needs to be reset.
                 cosmo = ccl.Cosmology(Omega_c=Omega_c, Omega_b=Omega_b, h=h,
                                       n_s=self.provider.get_param('ns'),
-                                      A_s=self.provider.get_param('As'),
-                                      transfer_function=transfer_function,
-                                      matter_power_spectrum=matter_pk)
+                                      A_s=self.provider.get_param('As'))
                 cosmo._set_background_from_arrays(a_array=a,
                                                   chi_array=distance,
                                                   hoh0_array=E_of_z,
